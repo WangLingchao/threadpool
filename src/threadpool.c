@@ -212,6 +212,7 @@ int threadpool_destroy(threadpool_t *pool, int flags)
         /* Already shutting down */
         if(pool->shutdown) {
             err = threadpool_shutdown;
+            pthread_mutex_unlock(&(pool->lock);
             break;
         }
 
@@ -219,12 +220,13 @@ int threadpool_destroy(threadpool_t *pool, int flags)
             graceful_shutdown : immediate_shutdown;
 
         /* Wake up all worker threads */
-        if((pthread_cond_broadcast(&(pool->notify)) != 0) ||
-           (pthread_mutex_unlock(&(pool->lock)) != 0)) {
+        if(pthread_cond_broadcast(&(pool->notify)) != 0) {
             err = threadpool_lock_failure;
+            pthread_mutex_unlock(&(pool->lock));
             break;
         }
-
+        pthread_mutex_unlock(&(pool->lock));
+ 
         /* Join all worker thread */
         for(i = 0; i < pool->thread_count; i++) {
             if(pthread_join(pool->threads[i], NULL) != 0) {
@@ -251,10 +253,6 @@ int threadpool_free(threadpool_t *pool)
         free(pool->threads);
         free(pool->queue);
  
-        /* Because we allocate pool->threads after initializing the
-           mutex and condition variable, we're sure they're
-           initialized. Let's lock the mutex just in case. */
-        pthread_mutex_lock(&(pool->lock));
         pthread_mutex_destroy(&(pool->lock));
         pthread_cond_destroy(&(pool->notify));
     }
